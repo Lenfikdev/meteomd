@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Погода в Кишинёве: Сейчас, по часам, по дням</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(180deg, #e6f0fa 0%, #ffffff 100%);
+      overscroll-behavior: none;
+    }
+    .weather-card {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .weather-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+    }
+    .tab {
+      background-color: #e5e7eb;
+      transition: background-color 0.3s;
+    }
+    .tab.active {
+      background-color: #3b82f6;
+      color: white;
+    }
+    @media (max-width: 640px) {
+      .weather-card {
+        padding: 1rem;
+      }
+      .header {
+        padding: 1rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      .weather-container {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+      .tab {
+        font-size: 0.875rem;
+        padding: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body class="font-sans antialiased">
+  <div class="container mx-auto weather-container p-2 sm:p-6">
+    <header class="header text-white p-4 sm:p-6 rounded-lg mb-4 sm:mb-6 shadow-lg">
+      <h1 class="text-xl sm:text-3xl font-bold text-center">Погода в Кишинёве, Молдова</h1>
+      <p class="text-center text-xs sm:text-base mt-2" id="update-time">Обновлено: Загрузка...</p>
+    </header>
+    <div class="flex justify-center mb-4 flex-wrap">
+      <button class="tab px-4 py-2 mx-1 rounded-lg font-semibold active" onclick="switchTab('now')">Сейчас</button>
+      <button class="tab px-4 py-2 mx-1 rounded-lg font-semibold" onclick="switchTab('hourly')">По часам</button>
+      <button class="tab px-4 py-2 mx-1 rounded-lg font-semibold" onclick="switchTab('daily')">По дням</button>
+    </div>
+    <div id="weather-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <!-- Погода будет отображаться здесь -->
+    </div>
+  </div>
+
+  <script>
+    // Функция для определения иконки на основе кода погоды Open-Meteo
+    function getWeatherIcon(code) {
+      const icons = {
+        0: "☀️", // Ясно
+        1: "🌤️", // Переменная облачность
+        2: "⛅", // Облачно
+        3: "☁️", // Пасмурно
+        61: "🌧️", // Дождь
+        63: "🌧️", // Умеренный дождь
+        65: "🌧️", // Сильный дождь
+        80: "🌦️", // Лёгкий дождь
+        95: "⛈️", // Гроза
+        96: "⛈️", // Гроза с градом
+        51: "🌧️", // Лёгкая морось
+        53: "🌧️", // Морось
+        71: "❄️", // Снег
+        73: "❄️", // Умеренный снег
+        75: "❄️", // Сильный снег
+        85: "🌨️", // Лёгкий снег
+        86: "🌨️" // Снегопад
+      };
+      return icons[code] || "🌥️";
+    }
+
+    // Функция для получения описания погоды
+    function getWeatherDescription(code) {
+      const descriptions = {
+        0: "Ясно",
+        1: "Переменная облачность",
+        2: "Облачно",
+        3: "Пасмурно",
+        61: "Дождь",
+        63: "Умеренный дождь",
+        65: "Сильный дождь",
+        80: "Лёгкий дождь",
+        95: "Гроза",
+        96: "Гроза с градом",
+        51: "Лёгкая морось",
+        53: "Морось",
+        71: "Снег",
+        73: "Умеренный снег",
+        75: "Сильный снег",
+        85: "Лёгкий снег",
+        86: "Снегопад"
+      };
+      return descriptions[code] || "Неизвестно";
+    }
+
+    // Получение данных с Open-Meteo API
+    async function fetchWeatherData() {
+      const url = "https://api.open-meteo.com/v1/forecast?latitude=47.01&longitude=28.86&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code&hourly=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,relative_humidity_2m_mean,weather_code&timezone=Europe%2FMoscow";
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Ошибка загрузки данных:", error);
+        document.getElementById('weather-container').innerHTML = '<p class="text-red-500 text-center">Ошибка загрузки данных. Проверьте интернет.</p>';
+        return null;
+      }
+    }
+
+    // Форматирование времени обновления
+    function formatUpdateTime() {
+      const now = new Date();
+      const options = { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Chisinau' };
+      return `Обновлено: ${now.toLocaleString('ru-RU', options)} EEST ${now.toLocaleDateString('ru-RU')}`;
+    }
+
+    // Отображение погоды
+    function displayWeather(mode, data) {
+      const container = document.getElementById('weather-container');
+      container.innerHTML = '';
+      document.getElementById('update-time').textContent = formatUpdateTime();
+
+      if (mode === 'now' && data.current) {
+        const item = data.current;
+        const card = `
+          <div class="weather-card bg-white p-3 sm:p-4 rounded-lg shadow-md text-center">
+            <p class="text-base sm:text-lg font-semibold text-gray-800">Сейчас</p>
+            <p class="text-4xl my-2">${getWeatherIcon(item.weather_code)}</p>
+            <p class="text-xl sm:text-3xl font-bold text-blue-600">${Math.round(item.temperature_2m)}°C</p>
+            <p class="capitalize text-sm sm:text-base text-gray-600">${getWeatherDescription(item.weather_code)}</p>
+            <p class="text-xs sm:text-sm text-gray-500">Ветер: ${item.wind_speed_10m.toFixed(1)} м/с</p>
+            <p class="text-xs sm:text-sm text-gray-500">Влажность: ${item.relative_humidity_2m}%</p>
+          </div>
+        `;
+        container.innerHTML = card;
+        container.className = 'grid grid-cols-1 gap-3 sm:gap-4';
+      } else if (mode === 'hourly' && data.hourly) {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const hoursToShow = data.hourly.time.slice(0, 24).map((time, index) => ({
+          time: new Date(time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+          temp: data.hourly.temperature_2m[index],
+          wind: data.hourly.wind_speed_10m[index],
+          humidity: data.hourly.relative_humidity_2m[index],
+          code: data.hourly.weather_code[index]
+        }));
+
+        hoursToShow.forEach(item => {
+          const card = `
+            <div class="weather-card bg-white p-3 sm:p-4 rounded-lg shadow-md text-center">
+              <p class="text-base sm:text-lg font-semibold text-gray-800">${item.time}</p>
+              <p class="text-2xl my-2">${getWeatherIcon(item.code)}</p>
+              <p class="text-xl sm:text-2xl font-bold text-blue-600">${Math.round(item.temp)}°C</p>
+              <p class="capitalize text-sm sm:text-base text-gray-600">${getWeatherDescription(item.code)}</p>
+              <p class="text-xs sm:text-sm text-gray-500">Ветер: ${item.wind.toFixed(1)} м/с</p>
+              <p class="text-xs sm:text-sm text-gray-500">Влажность: ${item.humidity}%</p>
+            </div>
+          `;
+          container.innerHTML += card;
+        });
+        container.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4';
+      } else if (mode === 'daily' && data.daily) {
+        data.daily.time.forEach((time, index) => {
+          const item = {
+            date: new Date(time).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }),
+            temp: (data.daily.temperature_2m_max[index] + data.daily.temperature_2m_min[index]) / 2,
+            wind: data.daily.wind_speed_10m_max[index],
+            humidity: data.daily.relative_humidity_2m_mean[index],
+            code: data.daily.weather_code[index]
+          };
+          const card = `
+            <div class="weather-card bg-white p-3 sm:p-4 rounded-lg shadow-md text-center">
+              <p class="text-base sm:text-lg font-semibold text-gray-800">${item.date}</p>
+              <p class="text-2xl my-2">${getWeatherIcon(item.code)}</p>
+              <p class="text-xl sm:text-2xl font-bold text-blue-600">${Math.round(item.temp)}°C</p>
+              <p class="capitalize text-sm sm:text-base text-gray-600">${getWeatherDescription(item.code)}</p>
+              <p class="text-xs sm:text-sm text-gray-500">Ветер: ${item.wind.toFixed(1)} м/с</p>
+              <p class="text-xs sm:text-sm text-gray-500">Влажность: ${item.humidity}%</p>
+            </div>
+          `;
+          container.innerHTML += card;
+        });
+        container.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4';
+      }
+    }
+
+    // Переключение вкладок
+    function switchTab(mode) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+      fetchWeatherData().then(data => {
+        if (data) displayWeather(mode, data);
+      });
+    }
+
+    // Инициализация
+    window.onload = () => {
+      fetchWeatherData().then(data => {
+        if (data) displayWeather('now', data);
+      });
+    };
+  </script>
+</body>
+</html>
